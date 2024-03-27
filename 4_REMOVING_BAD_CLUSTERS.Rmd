@@ -198,7 +198,7 @@ SC.integrated_2 <- FindClusters(SC.integrated_2, resolution = 0.5) ###Potentiall
 ```
 ```{r plot UMAPs, message = FALSE}
 #You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
-saveRDS(SC.integrated_2, file = "SC.integrated_2.rds")
+saveRDS(SC.integrated_2, file = "Scyliorhinus_retina.rds")
 
 # Now to plot the UMAP
 # note that you can set `label = TRUE` or use the LabelClusters function to help label individual clusters
