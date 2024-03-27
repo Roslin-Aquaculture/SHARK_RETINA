@@ -1,0 +1,240 @@
+---
+title: "Step 4 - Removing Bad Clusters"
+author: "Sarah Salisbury and Pablo Carballo Pacoret"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+# Getting Your Data
+
+## Setting up R Environment
+
+### Setup
+```{r setup}
+# Prevent scientific notation output (e.g., we don't want very small p-values to be output as say 10^-9)
+options(scipen=999)
+#set seed for reproducibility
+set.seed(42)
+```
+
+### Load Packages
+
+Now load up all of the packages you'll need for this analysis
+
+```{r load packages}
+# Load up libraries
+library(Seurat) # to run single cell analyses
+library(ggplot2) # to make plots
+library(dplyr) # to manipulate data frames
+library(cowplot) # to arrange plots in a grid
+library(data.table) # to use %like%
+library(glmGamPoi) # helps to speed up SCTransform step
+library("DoubletFinder") # to detect doublets in our dataset
+```
+
+### Load Data
+
+```{r load rds}
+SC.integrated <- readRDS("SC.integrated.rds")
+```
+
+### Remove troublesome clusters
+
+```{r remove bad clusters}
+# To subset and remove clusters and keep the remaining clusters for new analysis
+SC.integrated_2 <- subset(SC.integrated, idents = c(3), invert = TRUE) # we are removing cluster 3 because it has very low average UMI/feature counts in comparison to other clusters.
+# Please note that bad clusters were removed sequentially and this file was rerun each time a new cluster was removed.
+```
+
+### Set Default Assay
+
+```{r set default assay}
+# We're redoing sctransform so use the RNA assay
+DefaultAssay(SC.integrated_2) <- "RNA"
+```
+
+### SCTransform normalization
+
+Apply sctransform normalization (note that this single command replaces NormalizeData(), ScaleData(), and FindVariableFeatures()). Transformed data will be available in the SCT assay, which is set as the default after running sctransform. During normalization, we can also remove confounding sources of variation, for example, cell cycle stage.
+
+We will follow this vignette to use the "v2" version of SCTransform: https://satijalab.org/seurat/articles/sctransform_v2_vignette.html.
+```{r SCTransform normalization}
+# split the dataset into a list of of seurat objects (one for each sample)
+SC.list <- SplitObject(SC.integrated_2, split.by = "orig.ident")
+
+# Normalise and identify variable features for each dataset independently using SCTransform
+# The latest version of sctransform also supports using glmGamPoi package which substantially improves the speed of the learning procedure. It can be invoked by specifying method="glmGamPoi".
+# Regress out variation due to cell cycle stage, by including "S.Score" and "G2M.Score" as variables to regress out.
+SC.list <- lapply(X = SC.list, FUN = function(x) {
+  x <- SCTransform(x,
+                   vst.flavor = "v2",
+                   conserve.memory = TRUE,
+                   vars.to.regress = c("S.Score", "G2M.Score"), # could also regress on "percent.mt" if you hadn't removed these genes
+                   variable.features.n = "all",
+                   method = "glmGamPoi",
+                   assay = "RNA",
+                   new.assay.name = "SCT") # this should overwrite the current SCT assay
+})
+```
+```{r Sanity Check for Default Assay after SCTransform}
+#Please note that the default assay has been switched to "SCT"
+#For example:
+DefaultAssay(object = SC.integrated_2)
+```
+
+### Identifying Cell Clusters in Each Sample
+
+Before we can redo integration we need to first identify putative clusters within each sample. This involves a few steps:
+1. Generate a PCA
+2. Select the best number of dimensions (PCs) to be used going forward by consulting an Elbowplot of PCs from PCA
+3. Generate a UMAP
+4. Cluster Cells
+
+Please note that you have to look at the elbowplot and adjust the number of PCs to be used going forward!
+
+Code for "lapply" modified from: https://stackoverflow.com/questions/65133609/name-multiple-plots-with-lapplyggplot-ggtitle-with-nested-list-name-accordin
+
+Please note that we only need to run the PCA again, we don't need to run RunUMAP, FindNeighbours, FindClusters, because we're just going to integrate immediately (we don't need clusters for individual samples unlike our first round of filtering where we needed this information for the DoubletFinder analysis). See: https://satijalab.org/seurat/articles/sctransform_v2_vignette.html#perform-integration-using-pearson-residuals-1
+```{r identify cell clusters in each sample, message = FALSE}
+# 1. Linear dimension reduction
+# Run PCA for all of your samples individually with 50 PCs
+SC.list <-lapply(X = SC.list, FUN = function(x) {
+  x <- RunPCA(x, dims = 1:50)
+})
+```
+
+### Integration
+
+```{r clean up memory before integration}
+# Clean up memory
+# At this point you may be running out of memory agai
+# Ok we're going to try and remove everything now except AS.list to free up some memory
+rm(list=setdiff(ls(), "SC.list"))
+```
+
+Now we're going to integrate all of the samples together into a single dataset.
+```{r Integrated feature selection, message = FALSE} 
+# select features that are repeatedly variable across datasets for integration
+# note that nfeatures tells you how many features to include in analysis (default is 2000)
+# note also that we need to specify we used SCT as our normalization method
+features <- SelectIntegrationFeatures(object.list = SC.list, nfeatures = 2000, normalization.method = "SCT")
+```
+```{r prepare for integration and find anchors, message = FALSE}
+# Now prepare data for integration (https://satijalab.org/seurat/reference/prepsctintegration)
+SC.list <- PrepSCTIntegration(object.list = SC.list, anchor.features = features)
+
+# Find anchors to facilitate integration 
+#Possibly better to use 'reduction = "rpca"' (https://satijalab.org/seurat/articles/integration_rpca.html)
+anchors <- FindIntegrationAnchors(object.list = SC.list, anchor.features = features, normalization.method = "SCT", reduction = "rpca")
+```
+```{r Integration, message = FALSE}
+# this command creates an 'integrated' data assay
+SC.integrated_2 <- IntegrateData(anchorset = anchors, normalization.method = "SCT")
+
+# specify that we will perform downstream analysis on the corrected data note that the original
+# unmodified data still resides in the 'RNA' assay
+DefaultAssay(SC.integrated_2) <- "integrated"
+```
+## Dimensionality reduction and clustering
+
+Now that we've integrated our data, it's time to look for cell clusters again!
+
+We need to repeat the steps we did for each individual sample for the newly integrated dataset:
+1. Generate a PCA
+2. Select the best number of dimensions (PCs) to be used going forward by consulting an Elbowplot of PCs from PCA
+3. Generate a UMAP
+4. Cluster Cells
+
+
+
+```{r dimensionality reduction, message = FALSE}
+
+
+# 1. Linear dimension reduction
+SC.integrated_2 <- RunPCA(SC.integrated_2, dims = 1:50)
+```
+```{r dimensionality reduction visualization}
+#Examine and visualize PCA results
+
+# First print the five most informative features (nfeatures) for the first five PCA dimensions (PCs 1-5)
+print(SC.integrated_2[["pca"]], dims = 1:5, nfeatures = 5)
+
+# Now visualize the loadings for PCs 1 and 2 
+VizDimLoadings(SC.integrated_2, dims = 1:2, reduction = "pca")
+
+# Now visualize the first two axes of the PCA
+DimPlot(SC.integrated_2, reduction = "pca", group.by = "orig.ident")
+
+# Now visualize using a heatmap
+# Note that cells and features are ordered by PCA scores.
+# You can set "cells" to a value to show the most informative cells to a particular PC axis (speeds up plot generation considerably when this number is low)
+# Run for the first PC now
+DimHeatmap(SC.integrated_2, dims = 1, cells = 500, balanced = TRUE) # balanced = TRUE means you should plot an equal number of genes with both + and - scores, cells = 500 means plot the top 500 cells for this dimension
+
+# Now repeat heatmaps for first 15 PCs
+DimHeatmap(SC.integrated_2, dims = 1:15, cells = 500, balanced = TRUE)
+
+# 2. Check how many PCs you need with an Elbowplot
+ElbowPlot(SC.integrated_2, ndim = 50)
+#So probably 30 PCs is ok
+
+# 3. Make a UMAP
+# use the number of dimensions as determined from Elbowplot
+SC.integrated_2 <- RunUMAP(SC.integrated_2, dims = 1:30, verbose = FALSE)
+
+# Have a look at the UMAP
+DimPlot(SC.integrated_2, reduction = "umap", group.by = "orig.ident")
+
+# 4. Cluster cells
+
+# First thing to do is to calculate the neighbourhood overlap (Jaccard index) between every cell and its k.param nearest neighbors (https://satijalab.org/seurat/reference/findneighbors)
+# use the same number of dimensions as used for UMAP
+SC.integrated_2 <- FindNeighbors(SC.integrated_2, dims = 1:30)
+
+# Now we use that neighbourhood information to figure out which cells belong together in a cluster. The resolution parameter sets the "granularity" of the clustering, so higher values will give you more clusters. This seems like a bit of a dark art. https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
+SC.integrated_2 <- FindClusters(SC.integrated_2, resolution = 0.5) ###Potentially play with "resolution = 0.5"
+```
+```{r plot UMAPs, message = FALSE}
+#You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
+saveRDS(SC.integrated_2, file = "SC.integrated_2.rds")
+
+# Now to plot the UMAP
+# note that you can set `label = TRUE` or use the LabelClusters function to help label individual clusters
+
+# Plot UMAP with clusters in a legend
+png("UMAP_clusters_filter.png", res=600, width=4200, height=3200)
+DimPlot(SC.integrated_2, reduction = "umap", pt.size = 0.1)
+dev.off()
+
+# Plot UMAP with clusters labeled on the plot
+png("UMAP_clusters_names_on_cells_filter.png", res=600, width=4200, height=3200)
+DimPlot(SC.integrated_2, reduction = "umap", label = TRUE, pt.size = 0.1) + NoLegend()
+dev.off()
+
+# Plot UMAP with cells coloured by sample origin
+png("UMAP_origin_filter.png", res=600, width=4200, height=3200)
+DimPlot(SC.integrated_2, group.by = "orig.ident", pt.size = 0.1)
+dev.off()
+
+# Plot UMAP with clusters in a legend for each sample
+png("UMAP_clusters_separated_origin_filter.png", res=600, width=6200, height=3200)
+DimPlot(SC.integrated_2, reduction = "umap", split.by = "orig.ident", pt.size = 0.1)
+dev.off()
+
+# Plot UMAP with clusters labeled on the plot for each sample
+png("UMAP_clusters_separated_origin_names_on_cells_filter.png", res=600, width=6200, height=3200)
+DimPlot(SC.integrated_2, reduction = "umap", split.by = "orig.ident", label = TRUE, pt.size = 0.1) + NoLegend()
+dev.off()
+
+# Plot UMAP with cells coloured by cell cycle stage
+png("UMAP_cellcycle_filter.png", res=600, width=4200, height=3200)
+DimPlot(SC.integrated_2, group.by = "Phase", pt.size = 0.1)
+dev.off()
+```
+
+```{r session info}
+sessionInfo()
+```
+
