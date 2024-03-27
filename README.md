@@ -1,4 +1,4 @@
-# README for Atlantic Salmon vs Coho Salmon snRNAseq
+# README
 
 **By Sarah Salisbury and Pablo Carballo Pacoret**
 
