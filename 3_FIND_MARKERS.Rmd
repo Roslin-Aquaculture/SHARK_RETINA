@@ -61,6 +61,9 @@ SC.markers <- FindAllMarkers(SC.integrated, assay = "SCT", slot = "data", only.p
 
 # save to file
 write.table(sc.markers, file="DE_SC.txt", sep="\t")
+
+# save Seurat object
+saveRDS(SC.integrated, file = "SC.integrated.rds")
 ```
 
 ```{r session info}
