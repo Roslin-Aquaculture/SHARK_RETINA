@@ -234,7 +234,7 @@ Then the genome and its annotation can be indexed with STAR.
 
 ### 2. Get Cell Barcode (CB) Whitelist
 
-So all of our nuclei/cells are barcoded with a unique cell barcode (CB). These are the barcodes that are unique to each bead, and because each nuclei is paired with a different bead during the 10X protocol, each nuclei has a unique barcode. We can get a list of each of these potential barcodes here: https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/3M-february-2018.txt.gz. During the mapping stage we will remove sequences without a cell barcode that is on this list.
+So all of our nuclei/cells are barcoded with a unique cell barcode (CB). These are the barcodes that are unique to each bead, and because each nuclei is paired with a different bead during the 10X protocol, each nuclei has a unique barcode. We can get a list of each of these potential barcodes here: https://github.com/10XGenomics/cellranger/raw/master/lib/python/cellranger/barcodes/3M-february-2018.txt.gz (as of September 20, 2024, link no longer works, please see 3M-february-2018.txt.gz file in repository). During the mapping stage we will remove sequences without a cell barcode that is on this list.
 
 So place the file in the refmt directory and then unzip it:
 ```
