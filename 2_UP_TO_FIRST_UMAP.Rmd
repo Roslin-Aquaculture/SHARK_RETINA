@@ -422,7 +422,7 @@ ids
 
 # Great, now set limits for each of our samples:
 
-UMI_upper <- c(24000, 20000, 20000) # set upper feature limit to 500 for all
+UMI_upper <- c(20000, 24000, 20000) # set upper feature limit to 500 for all
 UMI_lower <- c(1000, 500, 750) # set lower UMI limit to 500 for all
 Feature_upper <- c(5500, 6500, 7000) # set upper feature limit to 3500 for all samples
 Feature_lower <- c(500, 500, 300) # set upper feature limit to 500 for all
