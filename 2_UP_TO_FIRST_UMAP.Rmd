@@ -747,7 +747,7 @@ table1 <- lapply(X = table1, FUN = function(x) {
   x <- FindNeighbors(x, dims = 1:20)
 })
 
-# Now we use that neighbourhood information to figure out which cells belong together in a cluster. The resolution parameter sets the "granularity" of the clustering, so higher values will give you more clusters. This seems like a bit of a dark art. https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
+# Now we use that neighbourhood information to figure out which cells belong together in a cluster. The resolution parameter sets the "granularity" of the clustering, so higher values will give you more clusters. https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
 table1 <- lapply(X = table1, FUN = function(x) {
   x <- FindClusters(x, resolution = 0.5) # Potentially play with "resolution = 0.5"
 })
@@ -977,7 +977,7 @@ DimPlot(SC.integrated, reduction = "umap", group.by = "orig.ident")
 # use the same number of dimensions as used for UMAP
 SC.integrated <- FindNeighbors(SC.integrated, dims = 1:30)
 
-# Now we use that neighbourhood information to figure out which cells belong together in a cluster. The resolution parameter sets the "granularity" of the clustering, so higher values will give you more clusters. This seems like a bit of a dark art. https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
+# Now we use that neighbourhood information to figure out which cells belong together in a cluster. The resolution parameter sets the "granularity" of the clustering, so higher values will give you more clusters. https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
 SC.integrated <- FindClusters(SC.integrated, resolution = 0.5) ###Potentially play with "resolution = 0.5"
 ```
 ```{r plot UMAPs, message = FALSE}
