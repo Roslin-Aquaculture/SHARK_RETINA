@@ -8,7 +8,7 @@
 
 If these scripts are helpful to you please consider citing the accompanying manuscript:
 
-(ADD ONCE AVAILABLE)
+Vidal-Vázquez, N., Hernández-Núñez, I., Carballo-Pacoret, P. et al. A single-nucleus RNA sequencing atlas of the postnatal retina of the shark Scyliorhinus canicula. Sci Data 12, 228 (2025). https://doi.org/10.1038/s41597-025-04547-2
 
 ## Repository Scripts
 
